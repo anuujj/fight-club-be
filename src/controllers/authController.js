@@ -1,6 +1,35 @@
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcrypt");
 const User = require("../models/User");
+const nodemailer = require('nodemailer');
+const { generateVerificationToken } = require("../utils");
+
+const sendVerificationEmail = (email, token) => {
+  const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+      user: 'youremail@gmail.com',
+      pass: 'password',
+    },
+  });
+
+  const verificationLink = `http://localhost:5173/verify/${token}`;
+
+  const mailOptions = {
+    from: 'videshsen729@gmail.com',
+    to: email,
+    subject: 'Email Verification',
+    text: `Click the following link to verify your email: ${verificationLink}`,
+  };
+
+  transporter.sendMail(mailOptions, (error, info) => {
+    if (error) {
+      console.error(error);
+    } else {
+      console.log('Email sent: ' + info.response);
+    }
+  });
+};
 
 const register = async (req, res) => {
   try {
@@ -11,15 +40,17 @@ const register = async (req, res) => {
     if (existingUser) {
       return res.status(400).json({ error: "Username already exists" });
     }
-
+    const verificationToken = generateVerificationToken();
     // Create a new user
-    const newUser = new User({ username, password, isVerified: false, email });
+    const newUser = new User({ username, password, isVerified: false, verificationToken, email });
     await newUser.save();
 
     // Generate a JWT token for the new user
     const token = jwt.sign({ userId: newUser._id }, process.env.JWT_SECRET, {
       expiresIn: "1h",
     });
+
+    sendVerificationEmail(email, verificationToken);
 
     res.status(201).json({ userId: newUser._id, token });
   } catch (error) {
@@ -76,4 +107,20 @@ const checkUsername = async (req, res) => {
     res.status(500).json({ error: "Internal Server Error" });
   }
 };
-module.exports = { register, login, checkUsername};
+
+const verifyEmail = async(req,res)=>{
+  const token = req.params.token;
+  const user = await User.findOne({verificationToken: token});
+
+  if (user) {
+    // Mark user as verified in the database
+    console.log('user found', user);
+    user.isVerified = true;
+    await user.save();
+
+    res.status(200).json({ message: 'Email verification successful' });
+  } else {
+    res.status(404).send('Invalid verification token.');
+  }
+}
+module.exports = { register, login, checkUsername, verifyEmail};

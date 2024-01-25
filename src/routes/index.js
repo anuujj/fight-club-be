@@ -9,5 +9,6 @@ router.post('/examples', exampleController.createExample);
 router.post('/register', authController.register);
 router.post('/login', authController.login);
 router.post('/checkUsername', authController.checkUsername);
+router.get('/verify/:token', authController.verifyEmail);
 
 module.exports = router;
